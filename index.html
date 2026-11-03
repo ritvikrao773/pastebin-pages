@@ -29,7 +29,6 @@
             <label class="field-label" for="titleInput">Title</label>
             <input id="titleInput" type="text" maxlength="80" placeholder="Untitled paste" aria-label="Paste title" />
           </div>
-
           <div class="status-wrap">
             <span class="meta-label">Characters</span>
             <strong id="charCounter">0</strong>
@@ -40,10 +39,12 @@
         <textarea id="pasteInput" spellcheck="false" aria-label="Paste contents" placeholder="Type or paste your text here..."></textarea>
 
         <div class="actions">
-          <button id="createBtn" class="primary-btn" type="button">Create share link</button>
+          <button id="createBtn" class="primary-btn" type="button">Create compressed link</button>
+          <button id="hamrBtn" class="secondary-btn" type="button">Try ha.mr compression</button>
           <button id="copyBtn" class="secondary-btn" type="button">Copy link</button>
           <button id="copyRawBtn" class="ghost-btn" type="button">Copy raw text</button>
         </div>
+        <p id="statusMessage" role="status" aria-live="polite"></p>
 
         <div id="shareBox" class="share-box hidden" aria-live="polite">
           <div class="share-row">
@@ -59,6 +60,10 @@
             <p>Your paste is compressed in your browser and stored in the URL fragment. GitHub Pages serves the app; no paste database or backend is used. Ordinary text compresses well, so longer pastes may fit in a share link.</p>
           </article>
           <article class="info-card">
+            <h2>Try ha.mr</h2>
+            <p>The optional button encodes the paste URL with ha.mr’s open-source URL compressor in your browser. ha.mr may show a redirect confirmation before opening the paste. The result can be longer for paste data, so the app keeps whichever link is shorter.</p>
+          </article>
+          <article class="info-card">
             <h2>Drafts stay in this browser</h2>
             <p>Unshared drafts are saved locally on this device to help prevent losing your work. They are not synced between devices.</p>
           </article>
@@ -66,17 +71,12 @@
             <h2>Privacy warning</h2>
             <p>Anyone with the complete share link can read the paste. Compression is not encryption—never share passwords, API keys, private keys, or other sensitive information.</p>
           </article>
-          <article class="info-card warning">
-            <h2>Link size and storage</h2>
-            <p>This creates a compressed link, not a short-ID link. URL length depends on the content and browser limits; some pastes may still be too large. Short IDs, expiry, and server-side storage require a backend.</p>
-          </article>
         </section>
       </main>
       <footer class="site-footer">
-        <p>Free to use · No account · Your paste is not uploaded to a database</p>
+        <p>ha.mr compression runs in your browser using its published open-source codec; no paste is uploaded to ha.mr.</p>
       </footer>
     </div>
-
     <script src="app.js"></script>
   </body>
 </html>
