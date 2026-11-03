@@ -1,1 +1,1 @@
-window.PASTEBIN_API_URL = "pastebin-pages1.ritvik-6343.workers.dev";
+window.PASTEBIN_API_URL = "https://pastebin-pages1.ritvik-6343.workers.dev";
