@@ -7,7 +7,7 @@ A static GitHub Pages pastebin with two sharing modes:
 
 ## Short-ID backend setup
 
-GitHub Pages and Jekyll are static hosting/build tools; GitHub Actions deploys the site but does not provide a database or API. The short-ID feature therefore uses a small Cloudflare Worker API with Workers KV storage. The website continues to be hosted on GitHub Pages.
+GitHub Pages and Jekyll are static hosting/build tools; GitHub Actions deploys the site but does not provide a database or API. The short-ID feature therefore uses a small Cloudflare Worker API with KV storage. The app can also still work with compressed links when no backend is configured.
 
 ### 1. Create a KV namespace
 
@@ -22,7 +22,7 @@ Copy the returned namespace ID into `worker/wrangler.toml`, replacing `REPLACE_W
 
 ### 2. Configure and deploy the Worker
 
-Set `ALLOWED_ORIGIN` to the exact origin serving the Pages site. For a project site, it will usually look like `https://ritvikrao773.github.io` (no trailing slash; the repository path is not part of the origin).
+Set `ALLOWED_ORIGIN` to the exact origin serving the Pages site. For a project site, it will usually look like `https://ritvikrao773.github.io` (no trailing slash; the repository path is not included).
 
 ```sh
 cd worker
@@ -45,7 +45,7 @@ Edit `config.js` and set:
 window.PASTEBIN_API_URL = "https://pastebin-pages-api.<account>.workers.dev";
 ```
 
-Commit the change. GitHub Pages will deploy the front end; the Worker is deployed separately with Wrangler. Once both are deployed, **Create short ID link** stores the paste and gives a URL ending in `?id=...`.
+Commit the change. GitHub Pages will deploy the front end; the Worker is deployed separately with Wrangler. Once both are deployed, **Create short ID link** stores the paste and gives a URL ending in a compact ID.
 
 ## Limits and privacy
 
@@ -59,3 +59,4 @@ Commit the change. GitHub Pages will deploy the front end; the Worker is deploye
 ## Local drafts
 
 Unshared drafts are saved in the current browser's local storage and do not sync across devices.
+
