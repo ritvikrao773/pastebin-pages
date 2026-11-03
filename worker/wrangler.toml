@@ -1,65 +1,7 @@
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const origin = env.ALLOWED_ORIGIN || "";
+name = "pastebin-pages-api"
+main = "index.js"
+compatibility_date = "2025-01-01"
 
-    const headers = {
-      "Access-Control-Allow-Origin": origin || "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Max-Age": "86400",
-    };
-
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers });
-    }
-
-    if (request.method === "POST" && url.pathname === "/paste") {
-      if (origin && request.headers.get("Origin") !== origin) {
-        return new Response("Forbidden", { status: 403, headers });
-      }
-
-      const body = await request.json();
-      const title = String(body.title || "Untitled paste").slice(0, 80);
-      const content = String(body.content || "");
-      const createdAt = body.createdAt || new Date().toISOString();
-
-      if (!content.trim() || content.length > 100000) {
-        return new Response("Paste too large or empty", { status: 400, headers });
-      }
-
-      const id = randomId();
-      await env.PASTES.put(id, JSON.stringify({ title, content, createdAt }), {
-        expirationTtl: 30 * 24 * 60 * 60,
-      });
-
-      return Response.json({ id }, { headers });
-    }
-
-    if (request.method === "GET" && url.pathname.startsWith("/paste/")) {
-      const id = url.pathname.slice("/paste/".length);
-      if (!id) {
-        return new Response("Missing paste id", { status: 400, headers });
-      }
-
-      const item = await env.PASTES.get(id);
-      if (!item) {
-        return new Response("Not found", { status: 404, headers });
-      }
-
-      const payload = JSON.parse(item);
-      return Response.json(payload, { headers });
-    }
-
-    return new Response("Not found", { status: 404, headers });
-  },
-};
-
-function randomId() {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let out = "";
-  for (let i = 0; i < 10; i += 1) {
-    out += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return out;
-}
+[[kv_namespaces]]
+binding = "PASTES"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
