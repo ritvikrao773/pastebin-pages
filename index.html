@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="GitHub Pages pastebin" />
+    <meta name="description" content="A quick, browser-based pastebin with compressed share links." />
     <title>Pastebin Pages</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +16,7 @@
         <div class="brand-wrap">
           <div class="brand-mark">P</div>
           <div>
-            <p class="eyebrow">GitHub Pages</p>
+            <p class="eyebrow">Fast · Browser-based · No account</p>
             <h1>Pastebin</h1>
           </div>
         </div>
@@ -53,17 +53,28 @@
           <input id="shareLink" type="text" readonly aria-label="Share URL" />
         </div>
 
-        <div class="info-grid">
-          <div class="info-card">
+        <section class="info-grid" aria-label="About this pastebin">
+          <article class="info-card">
             <h2>How it works</h2>
-            <p>Your paste is encoded in the URL fragment so GitHub Pages can host it without a backend.</p>
-          </div>
-          <div class="info-card warning">
-            <h2>Important</h2>
-            <p>Anyone with the link can read the paste. This is ideal for quick sharing, not secret data.</p>
-          </div>
-        </div>
+            <p>Your paste is compressed in your browser and stored in the URL fragment. GitHub Pages serves the app; no paste database or backend is used. Ordinary text compresses well, so longer pastes may fit in a share link.</p>
+          </article>
+          <article class="info-card">
+            <h2>Drafts stay in this browser</h2>
+            <p>Unshared drafts are saved locally on this device to help prevent losing your work. They are not synced between devices.</p>
+          </article>
+          <article class="info-card warning">
+            <h2>Privacy warning</h2>
+            <p>Anyone with the complete share link can read the paste. Compression is not encryption—never share passwords, API keys, private keys, or other sensitive information.</p>
+          </article>
+          <article class="info-card warning">
+            <h2>Link size and storage</h2>
+            <p>This creates a compressed link, not a short-ID link. URL length depends on the content and browser limits; some pastes may still be too large. Short IDs, expiry, and server-side storage require a backend.</p>
+          </article>
+        </section>
       </main>
+      <footer class="site-footer">
+        <p>Free to use · No account · Your paste is not uploaded to a database</p>
+      </footer>
     </div>
 
     <script src="app.js"></script>
