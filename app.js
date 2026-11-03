@@ -1,21 +1,28 @@
 const STORAGE_KEY = "pastebin-pages-draft-v1";
-// Most browsers accept URLs well beyond this. The compression step keeps ordinary
-// text pastes (including around 1,300 words) comfortably below this conservative cap.
 const MAX_URL_LENGTH = 8000;
+const HAMR_VERSION = "e1241f25f3e193b070acc0485288961ec11ce34f";
+const HAMR_CDN = `https://cdn.jsdelivr.net/gh/p2r3/ha.mr@${HAMR_VERSION}/docs/`;
+let hamrModulesPromise;
 
 const titleInput = document.getElementById("titleInput");
 const pasteInput = document.getElementById("pasteInput");
 const charCounter = document.getElementById("charCounter");
 const createBtn = document.getElementById("createBtn");
+const hamrBtn = document.getElementById("hamrBtn");
 const copyBtn = document.getElementById("copyBtn");
 const copyRawBtn = document.getElementById("copyRawBtn");
 const newPasteBtn = document.getElementById("newPasteBtn");
 const shareBox = document.getElementById("shareBox");
 const shareLink = document.getElementById("shareLink");
 const openPasteBtn = document.getElementById("openPasteBtn");
+const statusMessage = document.getElementById("statusMessage");
 
 function updateCounter() {
   charCounter.textContent = pasteInput.value.length.toLocaleString();
+}
+
+function setStatus(message) {
+  statusMessage.textContent = message;
 }
 
 function persistDraft() {
@@ -57,33 +64,22 @@ function base64UrlToBytes(value) {
 }
 
 async function encodePayload(payload) {
-  const json = JSON.stringify(payload);
-  const input = new TextEncoder().encode(json);
-
-  // Gzip is broadly supported in modern browsers. It substantially shrinks prose
-  // and code before URL-safe encoding. Keep a plain-format fallback for older browsers.
+  const input = new TextEncoder().encode(JSON.stringify(payload));
   if (typeof CompressionStream === "function") {
-    const compressedStream = new Blob([input]).stream().pipeThrough(new CompressionStream("gzip"));
-    const compressed = new Uint8Array(await new Response(compressedStream).arrayBuffer());
+    const stream = new Blob([input]).stream().pipeThrough(new CompressionStream("gzip"));
+    const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
     return `z1.${bytesToBase64Url(compressed)}`;
   }
-
   return `p1.${bytesToBase64Url(input)}`;
 }
 
 async function decodePayload(encoded) {
   const separator = encoded.indexOf(".");
-  if (separator < 0) {
-    // Backward compatibility with the original uncompressed base64url payloads.
-    return new TextDecoder("utf-8", { fatal: true }).decode(base64UrlToBytes(encoded));
-  }
-
+  if (separator < 0) return new TextDecoder("utf-8", { fatal: true }).decode(base64UrlToBytes(encoded));
   const format = encoded.slice(0, separator);
   const bytes = base64UrlToBytes(encoded.slice(separator + 1));
   if (format === "z1") {
-    if (typeof DecompressionStream !== "function") {
-      throw new Error("This browser cannot decompress this paste. Try a current browser.");
-    }
+    if (typeof DecompressionStream !== "function") throw new Error("This browser cannot decompress this paste.");
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
     return new Response(stream).text();
   }
@@ -94,16 +90,16 @@ async function decodePayload(encoded) {
 function createPayload() {
   const content = pasteInput.value;
   if (!content.trim()) {
-    alert("Paste content cannot be empty.");
+    setStatus("Paste content cannot be empty.");
     pasteInput.focus();
     return null;
   }
-  return {
-    v: 1,
-    title: titleInput.value.trim() || "Untitled paste",
-    content,
-    createdAt: new Date().toISOString(),
-  };
+  return { v: 1, title: titleInput.value.trim() || "Untitled paste", content, createdAt: new Date().toISOString() };
+}
+
+async function makeNormalPasteUrl(payload) {
+  const encoded = await encodePayload(payload);
+  return `${window.location.origin}${window.location.pathname}#${encoded}`;
 }
 
 function showShareUrl(url) {
@@ -114,46 +110,81 @@ function showShareUrl(url) {
 async function createPaste() {
   const payload = createPayload();
   if (!payload) return;
-
   createBtn.disabled = true;
   createBtn.textContent = "Compressing…";
+  setStatus("");
   try {
-    const encoded = await encodePayload(payload);
-    const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+    const url = await makeNormalPasteUrl(payload);
     if (url.length > MAX_URL_LENGTH) {
-      alert("This paste is still too large for a reliable share URL after compression. Try shortening it, or use a server-backed short-link service.");
+      setStatus("This paste is too large for a reliable share URL after gzip compression.");
       return;
     }
-
     history.replaceState(null, "", url);
     showShareUrl(url);
     try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* storage may be disabled */ }
+    setStatus(`Compressed link: ${url.length.toLocaleString()} characters.`);
     copyBtn.textContent = "Copy link";
   } catch (error) {
-    alert("Could not compress this paste in your browser. Try a current browser.");
-    console.error("Paste compression failed.", error);
+    setStatus("Could not compress this paste in your browser.");
+    console.error(error);
   } finally {
     createBtn.disabled = false;
-    createBtn.textContent = "Create share link";
+    createBtn.textContent = "Create compressed link";
+  }
+}
+
+async function loadHamrModules() {
+  if (!hamrModulesPromise) {
+    hamrModulesPromise = Promise.all([
+      import(`${HAMR_CDN}compress.js`),
+      import(`${HAMR_CDN}alphabets.js`),
+    ]).then(([codec, alphabets]) => ({ compress: codec.compress, alphabet: alphabets.outputAlphabetASCII }));
+  }
+  return hamrModulesPromise;
+}
+
+async function createHamrLink() {
+  const payload = createPayload();
+  if (!payload) return;
+  hamrBtn.disabled = true;
+  hamrBtn.textContent = "Trying ha.mr…";
+  setStatus("Loading the pinned ha.mr compressor and testing link size…");
+  try {
+    const normalUrl = await makeNormalPasteUrl(payload);
+    const { compress, alphabet } = await loadHamrModules();
+    const hamrUrl = `https://ha.mr#${compress(normalUrl, alphabet)}`;
+    const chosenUrl = hamrUrl.length < normalUrl.length ? hamrUrl : normalUrl;
+
+    showShareUrl(chosenUrl);
+    copyBtn.textContent = "Copy link";
+    if (chosenUrl === hamrUrl) {
+      setStatus(`ha.mr made it shorter: ${normalUrl.length.toLocaleString()} → ${hamrUrl.length.toLocaleString()} characters. Opening it may show ha.mr’s redirect confirmation.`);
+    } else {
+      setStatus(`Tried ha.mr: its link was ${hamrUrl.length.toLocaleString()} characters; the normal link is shorter at ${normalUrl.length.toLocaleString()}. Showing the shorter link.`);
+    }
+  } catch (error) {
+    setStatus("Could not load or run ha.mr’s browser compressor. Check your connection and try again.");
+    console.error("ha.mr compression failed.", error);
+  } finally {
+    hamrBtn.disabled = false;
+    hamrBtn.textContent = "Try ha.mr compression";
   }
 }
 
 async function loadPasteFromUrl() {
   const encoded = window.location.hash.slice(1);
   if (!encoded) return false;
-
   try {
     const payload = JSON.parse(await decodePayload(encoded));
-    if (!payload || payload.v !== 1 || typeof payload.content !== "string") {
-      throw new Error("Unsupported paste format");
-    }
+    if (!payload || payload.v !== 1 || typeof payload.content !== "string") throw new Error("Unsupported paste format");
     titleInput.value = typeof payload.title === "string" ? payload.title : "Untitled paste";
     pasteInput.value = payload.content;
     updateCounter();
     showShareUrl(window.location.href);
     return true;
   } catch (error) {
-    alert("This paste link is invalid or cannot be decoded by this browser.");
+    // A ha.mr link decodes to this page with the original paste hash, so paste loading is local.
+    setStatus("This paste link is invalid or cannot be decoded by this browser.");
     console.warn("Unable to load paste from URL.", error);
     return false;
   }
@@ -193,6 +224,7 @@ function resetForm() {
   updateCounter();
   shareBox.classList.add("hidden");
   shareLink.value = "";
+  setStatus("");
   history.replaceState(null, "", window.location.pathname);
   try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* storage may be disabled */ }
   pasteInput.focus();
@@ -200,16 +232,11 @@ function resetForm() {
 
 loadDraft();
 loadPasteFromUrl().then((loaded) => { if (!loaded) updateCounter(); });
-
 titleInput.addEventListener("input", persistDraft);
 pasteInput.addEventListener("input", () => { updateCounter(); persistDraft(); });
 createBtn.addEventListener("click", createPaste);
-copyBtn.addEventListener("click", () => {
-  const url = shareLink.value || window.location.href;
-  copyWithFeedback(copyBtn, url, "Copy link");
-});
+hamrBtn.addEventListener("click", createHamrLink);
+copyBtn.addEventListener("click", () => copyWithFeedback(copyBtn, shareLink.value || window.location.href, "Copy link"));
 copyRawBtn.addEventListener("click", () => copyWithFeedback(copyRawBtn, pasteInput.value, "Copy raw text"));
 newPasteBtn.addEventListener("click", resetForm);
-openPasteBtn.addEventListener("click", () => {
-  if (shareLink.value) window.open(shareLink.value, "_blank", "noopener,noreferrer");
-});
+openPasteBtn.addEventListener("click", () => { if (shareLink.value) window.open(shareLink.value, "_blank", "noopener,noreferrer"); });
