@@ -1,54 +1,61 @@
 # Pastebin Pages
 
-A fast static pastebin that runs entirely on GitHub Pages and keeps paste data in the browser instead of a server.
+A static GitHub Pages pastebin with two sharing modes:
 
-## What it does
+- **Compressed link:** The paste is compressed in the browser and encoded in the URL. No paste backend is used, but the resulting URL can still be long.
+- **Short ID link:** The paste is stored in Cloudflare Workers KV and shared using a 10-character ID. Pastes expire after 30 days.
 
-This app lets you:
-- write or paste text in a clean editor
-- save a draft locally in the browser
-- generate a shareable URL from your content
-- copy the resulting link or plain text
-- open a paste from a shared URL without a backend
+## Short-ID backend setup
 
-## How it works
+GitHub Pages and Jekyll are static hosting/build tools; GitHub Actions deploys the site but does not provide a database or API. The short-ID feature therefore uses a small Cloudflare Worker API with Workers KV storage. The website continues to be hosted on GitHub Pages.
 
-The paste is encoded into the URL fragment (`#...`) so GitHub Pages can host it without any database or API. The site tries to compress the content before generating the link, which helps fit longer writes into a browser-friendly URL.
+### 1. Create a KV namespace
 
-This follows the same general idea as `ha.mr`: reduce the payload before sending it through a URL. The difference is that this project is meant for arbitrary text, not just structured web links. Because of that, long text is still bounded by browser URL limits and the actual amount of compressible content.
+Install Wrangler, authenticate with Cloudflare, then from the repository root run:
 
-## Important limitations
+```sh
+npx wrangler login
+npx wrangler kv namespace create PASTES
+```
 
-This is not a true short-link service:
-- GitHub Pages cannot store paste data
-- a short link like `example.com/abc123` requires a backend or database
-- anyone who has the generated link can read the paste
-- the content is compressed, but not encrypted
+Copy the returned namespace ID into `worker/wrangler.toml`, replacing `REPLACE_WITH_KV_NAMESPACE_ID`.
 
-Do not paste passwords, tokens, private keys, API secrets, or other sensitive data.
+### 2. Configure and deploy the Worker
 
-## Expected behavior
+Set `ALLOWED_ORIGIN` to the exact origin serving the Pages site. For a project site, it will usually look like `https://ritvikrao773.github.io` (no trailing slash; the repository path is not part of the origin).
 
-For ordinary notes or moderately long text, this works very well. For large blocks of repetitive or code-heavy content, the browser-side compression helps a lot. Very large pastes may still exceed URL limits and should be treated as a signal to move to a real backend-backed paste service.
+```sh
+cd worker
+npx wrangler secret put ALLOWED_ORIGIN
+```
 
-## Deployment
+When prompted, enter the allowed site origin. Then deploy:
 
-1. Push this repo to GitHub.
-2. Open the repository `Settings`.
-3. Go to `Pages`.
-4. Choose the GitHub Actions deployment source.
-5. Deploy the site from the repository root.
+```sh
+npx wrangler deploy
+```
 
-## Notes
+Copy the deployed Worker URL (for example, `https://pastebin-pages-api.<account>.workers.dev`).
 
-This is great for:
-- quick sharing
-- code snippets
-- notes and drafts
-- small static documentation
+### 3. Connect the website
 
-This is not ideal for:
-- private or secret content
-- very large documents
-- permanent paste storage
-- short public URL IDs without a backend
+Edit `config.js` and set:
+
+```js
+window.PASTEBIN_API_URL = "https://pastebin-pages-api.<account>.workers.dev";
+```
+
+Commit the change. GitHub Pages will deploy the front end; the Worker is deployed separately with Wrangler. Once both are deployed, **Create short ID link** stores the paste and gives a URL ending in `?id=...`.
+
+## Limits and privacy
+
+- Short-ID pastes are readable by anyone who has the link and are stored for 30 days.
+- Compression and short IDs are not encryption. Do not store passwords, API keys, private keys, or confidential content.
+- The Worker rejects cross-origin requests except from the configured site origin and limits paste payloads to 100 KB.
+- The 10-character ID makes links compact, but this is public, unlisted sharing—not access control.
+- The short-ID button will report that setup is missing until `config.js`, the Worker, and KV namespace are configured.
+- GitHub Pages still supports compressed links without the Worker.
+
+## Local drafts
+
+Unshared drafts are saved in the current browser's local storage and do not sync across devices.
