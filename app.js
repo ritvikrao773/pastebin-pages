@@ -1,5 +1,7 @@
 const STORAGE_KEY = "pastebin-pages-draft-v1";
-const MAX_URL_LENGTH = 1800;
+// Most browsers accept URLs well beyond this. The compression step keeps ordinary
+// text pastes (including around 1,300 words) comfortably below this conservative cap.
+const MAX_URL_LENGTH = 8000;
 
 const titleInput = document.getElementById("titleInput");
 const pasteInput = document.getElementById("pasteInput");
@@ -38,19 +40,55 @@ function loadDraft() {
   }
 }
 
-function encodeText(value) {
-  const bytes = new TextEncoder().encode(value);
+function bytesToBase64Url(bytes) {
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function decodeText(value) {
+function base64UrlToBytes(value) {
+  if (!/^[A-Za-z0-9_-]*$/.test(value)) throw new Error("Invalid encoded data");
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
   const binary = atob(padded);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function encodePayload(payload) {
+  const json = JSON.stringify(payload);
+  const input = new TextEncoder().encode(json);
+
+  // Gzip is broadly supported in modern browsers. It substantially shrinks prose
+  // and code before URL-safe encoding. Keep a plain-format fallback for older browsers.
+  if (typeof CompressionStream === "function") {
+    const compressedStream = new Blob([input]).stream().pipeThrough(new CompressionStream("gzip"));
+    const compressed = new Uint8Array(await new Response(compressedStream).arrayBuffer());
+    return `z1.${bytesToBase64Url(compressed)}`;
+  }
+
+  return `p1.${bytesToBase64Url(input)}`;
+}
+
+async function decodePayload(encoded) {
+  const separator = encoded.indexOf(".");
+  if (separator < 0) {
+    // Backward compatibility with the original uncompressed base64url payloads.
+    return new TextDecoder("utf-8", { fatal: true }).decode(base64UrlToBytes(encoded));
+  }
+
+  const format = encoded.slice(0, separator);
+  const bytes = base64UrlToBytes(encoded.slice(separator + 1));
+  if (format === "z1") {
+    if (typeof DecompressionStream !== "function") {
+      throw new Error("This browser cannot decompress this paste. Try a current browser.");
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return new Response(stream).text();
+  }
+  if (format === "p1") return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  throw new Error("Unsupported paste format");
 }
 
 function createPayload() {
@@ -73,28 +111,39 @@ function showShareUrl(url) {
   shareBox.classList.remove("hidden");
 }
 
-function createPaste() {
+async function createPaste() {
   const payload = createPayload();
   if (!payload) return;
 
-  const url = `${window.location.origin}${window.location.pathname}#${encodeText(JSON.stringify(payload))}`;
-  if (url.length > MAX_URL_LENGTH) {
-    alert("This paste is too large for a reliable share URL. Try shortening the content.");
-    return;
-  }
+  createBtn.disabled = true;
+  createBtn.textContent = "Compressing…";
+  try {
+    const encoded = await encodePayload(payload);
+    const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+    if (url.length > MAX_URL_LENGTH) {
+      alert("This paste is still too large for a reliable share URL after compression. Try shortening it, or use a server-backed short-link service.");
+      return;
+    }
 
-  history.replaceState(null, "", url);
-  showShareUrl(url);
-  try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* storage may be disabled */ }
-  copyBtn.textContent = "Copy link";
+    history.replaceState(null, "", url);
+    showShareUrl(url);
+    try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* storage may be disabled */ }
+    copyBtn.textContent = "Copy link";
+  } catch (error) {
+    alert("Could not compress this paste in your browser. Try a current browser.");
+    console.error("Paste compression failed.", error);
+  } finally {
+    createBtn.disabled = false;
+    createBtn.textContent = "Create share link";
+  }
 }
 
-function loadPasteFromUrl() {
+async function loadPasteFromUrl() {
   const encoded = window.location.hash.slice(1);
   if (!encoded) return false;
 
   try {
-    const payload = JSON.parse(decodeText(encoded));
+    const payload = JSON.parse(await decodePayload(encoded));
     if (!payload || payload.v !== 1 || typeof payload.content !== "string") {
       throw new Error("Unsupported paste format");
     }
@@ -104,7 +153,7 @@ function loadPasteFromUrl() {
     showShareUrl(window.location.href);
     return true;
   } catch (error) {
-    alert("This paste link is invalid or uses an unsupported format.");
+    alert("This paste link is invalid or cannot be decoded by this browser.");
     console.warn("Unable to load paste from URL.", error);
     return false;
   }
@@ -150,7 +199,7 @@ function resetForm() {
 }
 
 loadDraft();
-if (!loadPasteFromUrl()) updateCounter();
+loadPasteFromUrl().then((loaded) => { if (!loaded) updateCounter(); });
 
 titleInput.addEventListener("input", persistDraft);
 pasteInput.addEventListener("input", () => { updateCounter(); persistDraft(); });
