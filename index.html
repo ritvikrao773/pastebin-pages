@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="GitHub Pages pastebin" />
+    <title>Pastebin Pages</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-mark">P</div>
+          <div>
+            <p class="eyebrow">GitHub Pages</p>
+            <h1>Pastebin</h1>
+          </div>
+        </div>
+        <button id="newPasteBtn" class="secondary-btn" type="button">New paste</button>
+      </header>
+
+      <main class="app-card">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <label class="field-label" for="titleInput">Title</label>
+            <input id="titleInput" type="text" maxlength="80" placeholder="Untitled paste" aria-label="Paste title" />
+          </div>
+
+          <div class="status-wrap">
+            <span class="meta-label">Characters</span>
+            <strong id="charCounter">0</strong>
+          </div>
+        </div>
+
+        <label class="field-label" for="pasteInput">Paste content</label>
+        <textarea id="pasteInput" spellcheck="false" aria-label="Paste contents" placeholder="Type or paste your text here..."></textarea>
+
+        <div class="actions">
+          <button id="createBtn" class="primary-btn" type="button">Create share link</button>
+          <button id="copyBtn" class="secondary-btn" type="button">Copy link</button>
+          <button id="copyRawBtn" class="ghost-btn" type="button">Copy raw text</button>
+        </div>
+
+        <div id="shareBox" class="share-box hidden" aria-live="polite">
+          <div class="share-row">
+            <label class="field-label" for="shareLink">Share URL</label>
+            <button id="openPasteBtn" class="tiny-btn" type="button">Open</button>
+          </div>
+          <input id="shareLink" type="text" readonly aria-label="Share URL" />
+        </div>
+
+        <div class="info-grid">
+          <div class="info-card">
+            <h2>How it works</h2>
+            <p>Your paste is encoded in the URL fragment so GitHub Pages can host it without a backend.</p>
+          </div>
+          <div class="info-card warning">
+            <h2>Important</h2>
+            <p>Anyone with the link can read the paste. This is ideal for quick sharing, not secret data.</p>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
